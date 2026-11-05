@@ -1,0 +1,24 @@
+# 构建产物
+build/
+*.pdb
+*.ilk
+*.o
+app.res
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# 运行时产物
+报纸输出/
+*.log
+
+# 发布二进制由 GitHub Release 提供，不入库
+dist/*.exe
+
+# 软著材料中的 PDF 由 tools/ 脚本从 docx 导出，不入库
+docs/软著/*.pdf
