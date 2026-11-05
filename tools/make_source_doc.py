@@ -21,7 +21,7 @@ from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
 
 SOFTWARE = "见报电子报纸下载器"
-VERSION = "V1.1.1"
+VERSION = "V1.2.0"
 OWNER = "李强"
 
 LINES_PER_PAGE = 50

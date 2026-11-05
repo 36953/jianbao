@@ -504,7 +504,9 @@ static void HandleClick(App& app, int id, int mx, int my) {
         break;
     case HIT_NAV_ABOUT:
     case HIT_HELP_ABOUT:
-        app.ShowToast(L"见报 v1.1 · 人民日报、经济日报、法治日报、大众日报", 5200);
+        app.ShowToast(std::wstring(L"见报 v") + kAppVersion + L" · 已接入 " +
+                          std::to_wstring(AllSources().size()) + L" 家报纸来源",
+                      5200);
         break;
     case HIT_SOURCE_MORE:
         app.ShowToast(L"如发现其他提供 PDF 的报纸，可反馈接入");

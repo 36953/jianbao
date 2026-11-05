@@ -7,6 +7,10 @@
 #include <vector>
 #include <functional>
 
+// ---------------------------------------------------------------- 版本
+// 与 app.rc 中的 FileVersion 保持一致（改版本时两处同改）
+extern const wchar_t* const kAppVersion;
+
 // ---------------------------------------------------------------- 字符串
 std::wstring Utf8ToWide(const std::string& s);
 std::string  WideToUtf8(const std::wstring& s);

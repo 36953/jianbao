@@ -8,6 +8,9 @@
 #include <cstring>
 #include <cwchar>
 
+// ---------------------------------------------------------------- 版本
+const wchar_t* const kAppVersion = L"1.2.0";
+
 // ---------------------------------------------------------------- 字符串
 std::wstring Utf8ToWide(const std::string& s) {
     if (s.empty()) return std::wstring();

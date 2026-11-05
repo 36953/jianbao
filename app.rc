@@ -3,8 +3,8 @@
 APPICON ICON "app.ico"
 
 1 VERSIONINFO
-FILEVERSION 1,1,1,0
-PRODUCTVERSION 1,1,1,0
+FILEVERSION 1,2,0,0
+PRODUCTVERSION 1,2,0,0
 FILEFLAGSMASK 0x3fL
 FILEFLAGS 0x0L
 FILEOS 0x40004L
@@ -17,12 +17,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", ""
             VALUE "FileDescription", "见报 · 电子报纸下载器"
-            VALUE "FileVersion", "1.1.1.0"
+            VALUE "FileVersion", "1.2.0.0"
             VALUE "InternalName", "JianBao"
-            VALUE "LegalCopyright", "仅供个人学习、教学与研究使用"
+            VALUE "LegalCopyright", "Copyright (c) 2026 李强 · MIT License"
             VALUE "OriginalFilename", "见报.exe"
             VALUE "ProductName", "见报"
-            VALUE "ProductVersion", "1.1.1.0"
+            VALUE "ProductVersion", "1.2.0.0"
         END
     END
     BLOCK "VarFileInfo"

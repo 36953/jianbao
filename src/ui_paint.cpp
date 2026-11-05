@@ -157,10 +157,22 @@ void DrawSidebar(Graphics& g, App& app, int W, int H) {
 
     // 已接入的报纸来源（全部为公开、免登录、按日提供 PDF 的数字报）
     const auto& sources = AllSources();
+
+    // 来源较多时按可用高度压缩行高，保证不压到底部导航
+    int srcBottom = H - app.S(126);
+    int rowH      = app.S(44);
+    if (!sources.empty()) {
+        int n     = (int)sources.size();
+        int avail = srcBottom - py;
+        int fit   = avail / n - app.S(2);
+        if (fit < rowH) rowH = fit;
+        if (rowH < app.S(26)) rowH = app.S(26);
+    }
+
     for (size_t i = 0; i < sources.size(); ++i) {
         const SourceInfo& s      = sources[i];
         bool              active = (app.sourceId == s.id);
-        RectI             r{px, py, innerW, app.S(44)};
+        RectI             r{px, py, innerW, rowH};
         if (active) {
             FillRound(g, r, app.S(7), GC(th::SideActive));
             FillRound(g, RectI{r.x, r.y + app.S(9), app.S(3), r.h - app.S(18)}, app.S(2),
@@ -177,8 +189,9 @@ void DrawSidebar(Graphics& g, App& app, int W, int H) {
             Text1(g, L"当前", RectI{r.Right() - app.S(40), r.y, app.S(28), r.h}, app.S(9),
                   GC(th::Accent), 2);
         AddHit(app, r, HIT_SOURCE + (int)i);
-        py += r.h + app.S(2);
+        py += rowH + app.S(2);
     }
+
 
     // 底部
     int  bottomPad = app.S(14);
@@ -192,7 +205,8 @@ void DrawSidebar(Graphics& g, App& app, int W, int H) {
                   (REAL)app.S(6));
     Text1(g, L"服务运行正常", RectI{vrow.x + app.S(16), vrow.y, vrow.w, vrow.h}, app.S(9),
           GC(0x99968F), 0);
-    Text1(g, L"v1.1.1", vrow, app.S(9), GC(0x99968F), 2);
+    std::wstring ver = std::wstring(L"v") + kAppVersion;
+    Text1(g, ver.c_str(), vrow, app.S(9), GC(0x99968F), 2);
 
     int by = vy - app.S(10);
     struct BotItem {

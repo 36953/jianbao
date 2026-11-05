@@ -1,14 +1,17 @@
 // sources.cpp —— 各报纸电子版站点的版面解析与 PDF 直链定位
 //
-// 已接入四家公开、免登录、按日提供 PDF 的数字报：
-//   人民日报  paper.people.com.cn/rmrb
-//             新版 /pc/layout/YYYYMM/DD/node_NN.html        PDF /pc/attachement/YYYYMM/DD/<guid>.pdf
-//             旧版 /html/YYYY-MM/DD/nbs.D110000renmrb_NN.htm PDF /images/YYYY-MM/DD/NN/rmrbYYYYMMDDNN.pdf
-//   经济日报  paper.ce.cn/pc/layout/YYYYMM/DD/node_NN.html  PDF /pc/attachment/YYYYMM/DD/<guid>.pdf
-//   法治日报  epaper.legaldaily.com.cn/fzrb/content/YYYYMMDD/PageNNTB.htm
-//             PDF /fzrb/PDF/YYYYMMDD/NN.pdf（可推导）
-//   大众日报  paper.dzwww.com/dzrb/content/YYYYMMDD/PageNNNU.htm
-//             PDF /dzrb/PDF/YYYYMMDD/NN.pdf（可推导）
+// 已接入八家公开、免登录、按日（或按周）提供 PDF 的数字报，分属三个站点族：
+//  一、人民网「方正 pc/layout」族（新版 /pc/layout/YYYYMM/DD/node_NN.html，PDF /pc/attachement/…）
+//     人民日报  paper.people.com.cn/rmrb      （另有旧版 /html/.../nbs.D110000renmrb_NN.htm）
+//     人民日报海外版  paper.people.com.cn/rmrbhwb
+//     中国能源报      paper.people.com.cn/zgnyb   （周报，每周一出刊）
+//  二、中国经济网
+//     经济日报  paper.ce.cn/pc/layout/YYYYMM/DD/node_NN.html  PDF /pc/attachment/YYYYMM/DD/<guid>.pdf
+//  三、方正「PageNNxx.htm」族（版面页一请求拿到全部版号，PDF 可推导）
+//     法治日报    epaper.legaldaily.com.cn/fzrb/content/YYYYMMDD/PageNNTB.htm  PDF /fzrb/PDF/YYYYMMDD/NN.pdf
+//     大众日报    paper.dzwww.com/dzrb/content/YYYYMMDD/PageNNNU.htm          PDF /dzrb/PDF/YYYYMMDD/NN.pdf
+//     农村大众    paper.dzwww.com/ncdz/content/YYYYMMDD/PageNNNU.htm          PDF /ncdz/PDF/YYYYMMDD/NN.pdf
+//     山东法制报  paper.dzwww.com/sdfzb/content/YYYYMMDD/PageNNNU.htm         PDF /sdfzb/PDF/YYYYMMDD/NN.pdf
 #include "core.h"
 
 #include <algorithm>
@@ -19,13 +22,21 @@
 // ---------------------------------------------------------------- 来源表
 const std::vector<SourceInfo>& AllSources() {
     static const std::vector<SourceInfo> table = {
-        {L"rmrb", L"人民日报", L"PEOPLE'S DAILY", L"人民网 · 图文数据库",
+        {L"rmrb", L"人民日报", L"PEOPLE'S DAILY", L"人民网 · 数字报",
          L"https://paper.people.com.cn/rmrb/"},
+        {L"rmrbhwb", L"人民日报海外版", L"PEOPLE'S DAILY OVERSEAS", L"人民网 · 数字报",
+         L"https://paper.people.com.cn/rmrbhwb/"},
         {L"ce", L"经济日报", L"ECONOMIC DAILY", L"中国经济网 · 数字报", L"http://paper.ce.cn/"},
+        {L"zgnyb", L"中国能源报", L"CHINA ENERGY NEWS", L"人民网 · 数字报（周报）",
+         L"https://paper.people.com.cn/zgnyb/"},
         {L"fzrb", L"法治日报", L"LEGAL DAILY", L"法治网 · 数字报",
          L"http://epaper.legaldaily.com.cn/fzrb/"},
         {L"dzrb", L"大众日报", L"DAZHONG DAILY", L"大众网 · 数字报",
          L"http://paper.dzwww.com/dzrb/"},
+        {L"ncdz", L"农村大众", L"NONGCUN DAZHONG", L"大众网 · 数字报",
+         L"http://paper.dzwww.com/ncdz/"},
+        {L"sdfzb", L"山东法制报", L"SHANDONG LEGAL DAILY", L"大众网 · 数字报",
+         L"http://paper.dzwww.com/sdfzb/"},
     };
     return table;
 }
@@ -33,10 +44,33 @@ const std::vector<SourceInfo>& AllSources() {
 const SourceInfo* FindSource(const std::wstring& id) {
     for (auto& s : AllSources())
         if (s.id == id) return &s;
+    // 也接受中文名
+    for (auto& s : AllSources())
+        if (s.name == id) return &s;
     return nullptr;
 }
 
 const SourceInfo& DefaultSource() { return AllSources().front(); }
+
+// ---------------------------------------------------------------- 站点族判定
+// 人民网「方正 pc/layout」族：URL 前缀即来源 ID
+static bool IsPeopleFamily(const std::wstring& id) {
+    return id == L"rmrb" || id == L"rmrbhwb" || id == L"zgnyb";
+}
+
+// 大众网「PageNNNU」族：同为 paper.dzwww.com 下的子目录
+static bool IsDzwwwFamily(const std::wstring& id) {
+    return id == L"dzrb" || id == L"ncdz" || id == L"sdfzb";
+}
+
+static std::wstring PeopleBase(const std::wstring& id) {
+    return L"https://paper.people.com.cn/" + id;
+}
+
+static std::wstring DzwwwBase(const std::wstring& id) {
+    return L"http://paper.dzwww.com/" + id;
+}
+
 
 // ---------------------------------------------------------------- 小工具
 static std::wstring FmtYmd8(const Date& d) {
@@ -198,33 +232,35 @@ static std::wstring ParseLead(const std::string& body, const char* marker) {
 
 static const char* LeadMarkerFor(const std::wstring& id) {
     if (id == L"ce") return "articlelist";
-    if (id == L"fzrb" || id == L"dzrb") return "newslist";
+    if (IsDzwwwFamily(id) || id == L"fzrb") return "newslist";
     return "news-list";
 }
 
-// ---------------------------------------------------------------- 人民日报
-static const wchar_t* kRmrb = L"https://paper.people.com.cn/rmrb";
-
+// ---------------------------------------------------------------- 人民网族
 enum class Layout { New, Old };
 
-static std::wstring RmrbCatalog(const Date& d, Layout layout) {
+static std::wstring RmrbCatalog(const std::wstring& id, const Date& d, Layout layout) {
     wchar_t buf[512];
     if (layout == Layout::New)
-        swprintf(buf, 512, L"%s/pc/layout/%04d%02d/%02d/node_01.html", kRmrb, d.y, d.m, d.d);
+        swprintf(buf, 512, L"%s/pc/layout/%04d%02d/%02d/node_01.html", PeopleBase(id).c_str(), d.y,
+                 d.m, d.d);
     else
-        swprintf(buf, 512, L"%s/html/%04d-%02d/%02d/nbs.D110000renmrb_01.htm", kRmrb, d.y, d.m, d.d);
+        swprintf(buf, 512, L"%s/html/%04d-%02d/%02d/nbs.D110000renmrb_01.htm", PeopleBase(id).c_str(),
+                 d.y, d.m, d.d);
     return buf;
 }
 
-static std::wstring RmrbPage(const Date& d, Layout layout, int page) {
+static std::wstring RmrbPage(const std::wstring& id, const Date& d, Layout layout, int page) {
     wchar_t buf[512];
     if (layout == Layout::New)
-        swprintf(buf, 512, L"%s/pc/layout/%04d%02d/%02d/node_%02d.html", kRmrb, d.y, d.m, d.d, page);
+        swprintf(buf, 512, L"%s/pc/layout/%04d%02d/%02d/node_%02d.html", PeopleBase(id).c_str(), d.y,
+                 d.m, d.d, page);
     else
-        swprintf(buf, 512, L"%s/html/%04d-%02d/%02d/nbs.D110000renmrb_%02d.htm", kRmrb, d.y, d.m, d.d,
-                 page);
+        swprintf(buf, 512, L"%s/html/%04d-%02d/%02d/nbs.D110000renmrb_%02d.htm",
+                 PeopleBase(id).c_str(), d.y, d.m, d.d, page);
     return buf;
 }
+
 
 // 解析版面导航：兼容 nbs.D110000renmrb_NN.htm 与 node_NN.html 两种写法
 static void ParseRmrbNav(const std::string& html, Layout layout, std::vector<PageInfo>& out) {
@@ -258,9 +294,10 @@ static void ParseRmrbNav(const std::string& html, Layout layout, std::vector<Pag
               [](const PageInfo& a, const PageInfo& b) { return a.number < b.number; });
 }
 
-static bool TryRmrbLayout(const Date& date, Layout layout, std::vector<PageInfo>& pages,
-                          FetchResult& result, std::wstring& err) {
-    HttpResponse r = HttpGet(RmrbCatalog(date, layout), RmrbCatalog(date, Layout::Old));
+static bool TryRmrbLayout(const std::wstring& id, const Date& date, Layout layout,
+                          std::vector<PageInfo>& pages, FetchResult& result, std::wstring& err) {
+    HttpResponse r =
+        HttpGet(RmrbCatalog(id, date, layout), RmrbCatalog(id, date, Layout::Old));
     if (r.status == 0) {
         err    = r.error.empty() ? L"网络请求失败" : r.error;
         result = FetchResult::Network;
@@ -280,19 +317,22 @@ static bool TryRmrbLayout(const Date& date, Layout layout, std::vector<PageInfo>
         result = FetchResult::Network;
         return false;
     }
-    for (auto& p : pages) p.pageUrl = RmrbPage(date, layout, p.number);
+    for (auto& p : pages) p.pageUrl = RmrbPage(id, date, layout, p.number);
     result = FetchResult::Ok;
     return true;
 }
 
-static FetchResult FetchRmrbList(const Date& date, std::vector<PageInfo>& pages, std::wstring& err) {
+// 人民网族：新版式优先；旧版式仅人民日报仍在提供
+static FetchResult FetchRmrbList(const std::wstring& id, const Date& date,
+                                 std::vector<PageInfo>& pages, std::wstring& err) {
     FetchResult  r1 = FetchResult::NotFound;
     std::wstring e1;
-    if (TryRmrbLayout(date, Layout::New, pages, r1, e1)) return FetchResult::Ok;
+    if (TryRmrbLayout(id, date, Layout::New, pages, r1, e1)) return FetchResult::Ok;
 
     FetchResult  r2 = FetchResult::NotFound;
     std::wstring e2;
-    if (TryRmrbLayout(date, Layout::Old, pages, r2, e2)) return FetchResult::Ok;
+    if (id == L"rmrb" && TryRmrbLayout(id, date, Layout::Old, pages, r2, e2))
+        return FetchResult::Ok;
 
     if (r1 == FetchResult::Network || r2 == FetchResult::Network) {
         err = (!e1.empty() ? e1 : e2);
@@ -305,6 +345,7 @@ static FetchResult FetchRmrbList(const Date& date, std::vector<PageInfo>& pages,
     err = L"该日期没有报纸（404）";
     return FetchResult::NotFound;
 }
+
 
 // ---------------------------------------------------------------- 经济日报
 static std::wstring CeCatalog(const Date& d) {
@@ -422,25 +463,26 @@ static void ParseFzrbNav(const std::string& html, const Date& date, std::vector<
               [](const PageInfo& a, const PageInfo& b) { return a.number < b.number; });
 }
 
-// ---------------------------------------------------------------- 大众日报
-static std::wstring DzrbCatalog(const Date& d) {
+// ---------------------------------------------------------------- 大众网族
+static std::wstring DzrbCatalog(const std::wstring& id, const Date& d) {
     wchar_t buf[512];
-    swprintf(buf, 512, L"http://paper.dzwww.com/dzrb/content/%s/Page01NU.htm", FmtYmd8(d).c_str());
+    swprintf(buf, 512, L"%s/content/%s/Page01NU.htm", DzwwwBase(id).c_str(), FmtYmd8(d).c_str());
     return buf;
 }
 
-static std::wstring DzrbPage(const Date& d, int page) {
+static std::wstring DzrbPage(const std::wstring& id, const Date& d, int page) {
     wchar_t buf[512];
-    swprintf(buf, 512, L"http://paper.dzwww.com/dzrb/content/%s/Page%02dNU.htm", FmtYmd8(d).c_str(),
+    swprintf(buf, 512, L"%s/content/%s/Page%02dNU.htm", DzwwwBase(id).c_str(), FmtYmd8(d).c_str(),
              page);
     return buf;
 }
 
-static std::wstring DzrbPdf(const Date& d, int page) {
+static std::wstring DzrbPdf(const std::wstring& id, const Date& d, int page) {
     wchar_t buf[512];
-    swprintf(buf, 512, L"http://paper.dzwww.com/dzrb/PDF/%s/%02d.pdf", FmtYmd8(d).c_str(), page);
+    swprintf(buf, 512, L"%s/PDF/%s/%02d.pdf", DzwwwBase(id).c_str(), FmtYmd8(d).c_str(), page);
     return buf;
 }
+
 
 // 导航形如：[<SPAN class=banci-A01><A href="Page02NU.htm">02</A></SPAN>]:<A …>要闻</A>
 // 页面上另有「收藏本页」「打印本页」等功能链接，同样指向版面页，需排除
@@ -452,7 +494,8 @@ static bool IsUiWord(const std::wstring& t) {
     return false;
 }
 
-static void ParseDzrbNav(const std::string& html, const Date& date, std::vector<PageInfo>& out) {
+static void ParseDzrbNav(const std::string& html, const std::wstring& id, const Date& date,
+                         std::vector<PageInfo>& out) {
     std::map<int, PageInfo> found;
     size_t                  pos = 0;
     while ((pos = html.find("Page", pos)) != std::string::npos) {
@@ -469,8 +512,8 @@ static void ParseDzrbNav(const std::string& html, const Date& date, std::vector<
             if (found.find(num) == found.end()) {
                 PageInfo info;
                 info.number  = num;
-                info.pageUrl = DzrbPage(date, num);
-                info.pdfUrl  = DzrbPdf(date, num);
+                info.pageUrl = DzrbPage(id, date, num);
+                info.pdfUrl  = DzrbPdf(id, date, num);
                 found[num]   = info;
             }
             if (!numeric && !text.empty() && !IsUiWord(text) && found[num].name.empty())
@@ -491,9 +534,14 @@ static void ParseDzrbNav(const std::string& html, const Date& date, std::vector<
 // ---------------------------------------------------------------- 统一入口
 static FetchResult FetchSimpleList(const SourceInfo& src, const Date& date,
                                    std::vector<PageInfo>& pages, std::wstring& err) {
-    std::wstring url = (src.id == L"ce")     ? CeCatalog(date)
-                       : (src.id == L"fzrb") ? FzrbCatalog(date)
-                                             : DzrbCatalog(date);
+    std::wstring url = (src.id == L"ce")       ? CeCatalog(date)
+                       : (src.id == L"fzrb")   ? FzrbCatalog(date)
+                       : IsDzwwwFamily(src.id) ? DzrbCatalog(src.id, date)
+                                               : std::wstring();
+    if (url.empty()) {
+        err = L"未知的报纸来源：" + src.id;
+        return FetchResult::Network;
+    }
     HttpResponse r = HttpGet(url, src.home);
     if (r.status == 0) {
         err = r.error.empty() ? L"网络请求失败" : r.error;
@@ -514,7 +562,7 @@ static FetchResult FetchSimpleList(const SourceInfo& src, const Date& date,
 
     if (src.id == L"ce") ParseCeNav(r.body, url, pages);
     else if (src.id == L"fzrb") ParseFzrbNav(r.body, date, pages);
-    else ParseDzrbNav(r.body, date, pages);
+    else ParseDzrbNav(r.body, src.id, date, pages);
 
     if (pages.empty()) {
         err = L"未能解析出版面导航，站点结构可能已变更";
@@ -526,16 +574,16 @@ static FetchResult FetchSimpleList(const SourceInfo& src, const Date& date,
 FetchResult FetchPageList(const SourceInfo& src, const Date& date, std::vector<PageInfo>& pages,
                           std::wstring& err) {
     pages.clear();
-    if (src.id == L"rmrb") return FetchRmrbList(date, pages, err);
+    if (IsPeopleFamily(src.id)) return FetchRmrbList(src.id, date, pages, err);
     return FetchSimpleList(src, date, pages, err);
 }
 
 bool FetchPageDetail(const SourceInfo& src, const Date& date, PageInfo& page, std::wstring& err) {
     if (page.pageUrl.empty()) {
-        if (src.id == L"rmrb") page.pageUrl = RmrbPage(date, Layout::New, page.number);
+        if (IsPeopleFamily(src.id)) page.pageUrl = RmrbPage(src.id, date, Layout::New, page.number);
         else if (src.id == L"ce") page.pageUrl = CePage(date, page.number);
         else if (src.id == L"fzrb") page.pageUrl = FzrbPage(date, page.number);
-        else page.pageUrl = DzrbPage(date, page.number);
+        else page.pageUrl = DzrbPage(src.id, date, page.number);
     }
     HttpResponse r = HttpGet(page.pageUrl, src.home);
     if (r.status != 200) {
@@ -565,12 +613,13 @@ bool FetchPageDetail(const SourceInfo& src, const Date& date, PageInfo& page, st
     }
 
     if (src.id == L"fzrb") { page.pdfUrl = FzrbPdf(date, page.number); return true; }
-    if (src.id == L"dzrb") { page.pdfUrl = DzrbPdf(date, page.number); return true; }
+    if (IsDzwwwFamily(src.id)) { page.pdfUrl = DzrbPdf(src.id, date, page.number); return true; }
 
     // 人民日报旧版可按命名规则兜底
     wchar_t buf[512];
-    swprintf(buf, 512, L"%s/images/%04d-%02d/%02d/%02d/rmrb%04d%02d%02d%02d.pdf", kRmrb, date.y,
-             date.m, date.d, page.number, date.y, date.m, date.d, page.number);
+    swprintf(buf, 512, L"%s/images/%04d-%02d/%02d/%02d/rmrb%04d%02d%02d%02d.pdf",
+             PeopleBase(src.id).c_str(), date.y, date.m, date.d, page.number, date.y, date.m,
+             date.d, page.number);
     page.pdfUrl = buf;
     return true;
 }
@@ -581,11 +630,12 @@ bool ResolvePdfUrl(const SourceInfo& src, const Date& date, PageInfo& page, std:
 }
 
 std::wstring RefererFor(const SourceInfo& src, const Date& date) {
-    if (src.id == L"rmrb") return RmrbCatalog(date, Layout::New);
+    if (IsPeopleFamily(src.id)) return RmrbCatalog(src.id, date, Layout::New);
     if (src.id == L"ce") return CeCatalog(date);
     if (src.id == L"fzrb") return FzrbCatalog(date);
-    return DzrbCatalog(date);
+    return DzrbCatalog(src.id, date);
 }
+
 
 bool DownloadPdf(const PageInfo& page, const std::wstring& destPath,
                  const std::wstring& referer, std::wstring& err) {
@@ -612,22 +662,25 @@ bool DownloadPdf(const PageInfo& page, const std::wstring& destPath,
 
 int ProbeDate(const SourceInfo& src, const Date& date) {
     bool         forbidden = false;
-    std::wstring catalog   = (src.id == L"rmrb")     ? RmrbCatalog(date, Layout::New)
+    bool         people    = IsPeopleFamily(src.id);
+    std::wstring catalog   = people ? RmrbCatalog(src.id, date, Layout::New)
                              : (src.id == L"ce")     ? CeCatalog(date)
                              : (src.id == L"fzrb")   ? FzrbCatalog(date)
-                                                     : DzrbCatalog(date);
+                                                     : DzrbCatalog(src.id, date);
 
     for (int i = 0; i < 2; ++i) {
-        std::wstring url = (i == 0) ? catalog
-                                    : (src.id == L"rmrb" ? RmrbCatalog(date, Layout::Old) : catalog);
+        std::wstring url =
+            (i == 0) ? catalog
+                     : (people ? RmrbCatalog(src.id, date, Layout::Old) : catalog);
         HttpResponse r = HttpGet(url, src.home, 15000);
         if (r.status == 200) return 200;
         if (r.status == 0) return 0;
         if (r.status == 403) forbidden = true;
-        if (src.id != L"rmrb") break;
+        if (!people || src.id != L"rmrb") break;
     }
     return forbidden ? 403 : 404;
 }
+
 
 bool FindLatestDate(const SourceInfo& src, Date& out, std::wstring& err,
                     const std::function<void(const std::wstring&)>& log) {
@@ -643,7 +696,24 @@ bool FindLatestDate(const SourceInfo& src, Date& out, std::wstring& err,
         return true;
     }
 
-    int  gap = 1, failedGap = 0;
+    // 先按日回看两周：日报遇节假日休刊、周报（如中国能源报每周一出刊）都能覆盖。
+    // 若改用倍增回看，步长会跳过固定的出刊星期，导致「近 4 年都没有」的误判。
+    for (int back = 1; back <= 14; ++back) {
+        Date probe = AddDays(today, -back);
+        int  st    = ProbeDate(src, probe);
+        if (st == 0) {
+            err = L"无法连接" + src.name + L"站点，请检查网络";
+            return false;
+        }
+        if (st == 200) {
+            if (log) log(L"已确认当前最新可下载日期：" + IsoDateW(probe));
+            out = probe;
+            return true;
+        }
+    }
+
+    // 两周内没有，再按倍增 + 二分查找更早的存档
+    int  gap = 16, failedGap = 15;
     Date candidate;
     bool found = false;
     while (gap <= 1500) {
