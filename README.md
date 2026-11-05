@@ -12,7 +12,7 @@
 - **无任何运行时依赖**：不需要 Python、浏览器或本地服务，单个 EXE 双击即用
 - 界面按设计稿逐像素还原（配色、字号、间距取自 Figma 导出的 CSS 变量）
 
-下载：[Releases 最新版](https://github.com/36953/jianbao/releases/latest) → `见报.exe`（v1.1.1，约 900 KB，单文件免安装）
+下载：[Releases 最新版](https://github.com/36953/jianbao/releases/latest) → `jianbao-v1.1.1-win64.exe`（即 `见报.exe`，v1.1.1，约 900 KB，单文件免安装）
 
 ![主界面](docs/shots/download.png)
 
