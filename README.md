@@ -161,7 +161,8 @@ tools/make_source_doc.py  生成软著「源程序」文档（每页 50 行、�
 tools/make_manual_doc.py  生成软著「软件说明书」（含界面截图与目录页码）
 tools/docx2pdf.ps1        调 Word 导出 PDF 并统计页数（Windows）
 docs/shots/       界面截图（由 `--render-ui` 离屏渲染）
-docs/软著/        软著登记材料：源程序与软件说明书的 docx、登记信息表
+docs/软著/        软著登记材料：源程序与软件说明书的 docx、登记信息表、
+                  功能描述（187 字 / 1061 字两版）、申请指引
 ```
 
 `dist\见报.exe` 与软著用的 PDF 属于派生产物，不入库：前者从 [Releases](https://github.com/36953/jianbao/releases) 获取，
